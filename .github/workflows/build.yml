@@ -1,0 +1,38 @@
+# GitHub Actions: Auto-build .exe from .py via PyInstaller
+name: Build EXE
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install pyinstaller
+          if (Test-Path "requirements.txt") { pip install -r requirements.txt }
+
+      - name: Build EXE
+        run: |
+          $files = @(Get-ChildItem -Path "$env:GITHUB_WORKSPACE" -Filter "*.py" -Recurse | Where-Object { $_.Name -ne "setup.py" })
+          foreach ($f in $files) {
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
+            pyinstaller --onefile --noconsole --name "$name" "$($f.FullName)" 2>&1
+          }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: built-exe
+          path: dist/*.exe
+          if-no-files-found: error
